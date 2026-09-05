@@ -83,12 +83,14 @@ gateway:
   service:
     port: 80
 
-# Disable self-monitoring para economizar recursos
+# Disable self-monitoring e canary para economizar recursos e evitar erros no lab
 monitoring:
   selfMonitoring:
     enabled: false
     grafanaAgent:
       installOperator: false
+  # Canary desabilitado: gera erros de "negative structured metadata" no Loki 3.5
+  # e não agrega valor para o lab de aprendizado
   lokiCanary:
     enabled: false
   serviceMonitor:

@@ -4,221 +4,173 @@
 # App de demonstração com 20+ microservices instrumentados com OTEL.
 # Gera traces, métricas e logs reais para testar a stack de observabilidade.
 #
-# Desabilitamos os componentes internos da demo pois temos nossa própria stack:
-#   ❌ Grafana embutido (usamos o nosso)
-#   ❌ Jaeger embutido (usamos o Tempo)
-#   ❌ Prometheus embutido (usamos o Mimir via Alloy)
-#   ❌ OpenTelemetry Collector embutido (usamos o Alloy)
+# Estratégia: sobrescrever OTEL_COLLECTOR_NAME para apontar ao nosso Alloy
+# em vez do collector interno do demo. Todos os serviços usam esta variável
+# para compor o endpoint OTLP: http://$(OTEL_COLLECTOR_NAME):4318
+#
+# Componentes internos desabilitados (usamos nossa própria stack):
+#   ❌ opentelemetry-collector interno  → Alloy (grafana-stack)
+#   ❌ jaeger interno                   → Tempo (grafana-stack)
+#   ❌ prometheus interno               → Mimir via Alloy (grafana-stack)
+#   ❌ grafana interno                  → Grafana (grafana-stack)
 #
 # Docs: https://opentelemetry.io/docs/demo/kubernetes-deployment/
 # =============================================================================
 
 # =============================================================================
-# COMPONENTES INTERNOS — Todos desabilitados (usamos nossa stack)
+# DEFAULT ENV — aplicado a TODOS os microservices
+# Sobrescreve o endpoint do collector para o nosso Alloy
 # =============================================================================
 default:
-  # Endereço do nosso Alloy para receber OTLP de todos os microservices
-  # Todos os serviços do demo vão enviar traces/métricas/logs para cá
-  envOverrides:
-    OTEL_EXPORTER_OTLP_ENDPOINT: "http://alloy.grafana-stack.svc.cluster.local:4317"
-    OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+  env:
+    - name: OTEL_SERVICE_NAME
+      valueFrom:
+        fieldRef:
+          apiVersion: v1
+          fieldPath: "metadata.labels['app.kubernetes.io/component']"
+    # ⭐ CHAVE: aponta todos os serviços para o Alloy no namespace grafana-stack
+    - name: OTEL_COLLECTOR_NAME
+      value: "alloy.grafana-stack.svc.cluster.local"
+    - name: OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
+      value: cumulative
+    - name: OTEL_RESOURCE_ATTRIBUTES
+      value: "service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=2.0.2"
 
-# Desabilitar componentes de observabilidade internos da demo
+# =============================================================================
+# COMPONENTES INTERNOS — todos desabilitados
+# =============================================================================
 opentelemetry-collector:
-  enabled: false   # Usamos o Alloy
+  enabled: false
 
 jaeger:
-  enabled: false   # Usamos o Tempo
+  enabled: false
 
 prometheus:
-  enabled: false   # Usamos o Mimir via Alloy
+  enabled: false
 
 grafana:
-  enabled: false   # Usamos o nosso Grafana
+  enabled: false
 
 # =============================================================================
-# COMPONENTES DA APP — Ajustar recursos para o lab (M1 com 10 GB alocados)
+# COMPONENTES DA APP — nomes em kebab-case conforme schema do chart v0.37.x
+# Recursos ajustados para M1 com 10 GB alocados no Colima.
+# Total estimado: ~2.5 GB RAM para todos os serviços.
 # =============================================================================
-
-# Frontend (interface web da loja)
 components:
-  frontend:
-    enabled: true
-    resources:
-      requests:
-        cpu: 50m
-        memory: 64Mi
-      limits:
-        cpu: 200m
-        memory: 256Mi
 
-  # Proxy de entrada (expõe o frontend externamente)
-  frontendProxy:
-    enabled: true
+  # Frontend: interface web da loja (React)
+  frontend:
     resources:
-      requests:
-        cpu: 50m
-        memory: 32Mi
       limits:
-        cpu: 100m
+        memory: 250Mi
+
+  # Proxy de entrada nginx
+  frontend-proxy:
+    resources:
+      limits:
         memory: 64Mi
     service:
       type: ClusterIP
 
-  # Load generator — gera tráfego contínuo para a loja
-  loadgenerator:
-    enabled: true
+  # Load Generator: gera tráfego contínuo automaticamente
+  load-generator:
     resources:
-      requests:
-        cpu: 50m
-        memory: 64Mi
       limits:
-        cpu: 200m
-        memory: 256Mi
+        memory: 200Mi
 
-  # Serviço de checkout
-  checkoutService:
-    enabled: true
+  # Cart Service (Go) - usa Valkey/Redis
+  cart:
     resources:
-      requests:
-        cpu: 50m
-        memory: 64Mi
       limits:
-        cpu: 200m
+        memory: 160Mi
+
+  # Checkout Service (Go)
+  checkout:
+    resources:
+      limits:
         memory: 128Mi
 
-  # Serviço de produtos
-  productCatalogService:
-    enabled: true
+  # Product Catalog Service (Go)
+  product-catalog:
     resources:
-      requests:
-        cpu: 50m
+      limits:
+        memory: 128Mi
+
+  # Currency Service (C++)
+  currency:
+    resources:
+      limits:
+        memory: 128Mi
+
+  # Shipping Service (Rust)
+  shipping:
+    resources:
+      limits:
+        memory: 128Mi
+
+  # Email Service (Ruby)
+  email:
+    resources:
+      limits:
+        memory: 128Mi
+
+  # Payment Service (JavaScript/Node.js)
+  payment:
+    resources:
+      limits:
+        memory: 128Mi
+
+  # Recommendation Service (Python)
+  recommendation:
+    resources:
+      limits:
+        memory: 500Mi
+
+  # Ad Service (Java) — ⭐ gera falhas simuladas via feature flags!
+  ad:
+    resources:
+      limits:
+        memory: 300Mi
+
+  # Accounting Service (Go)
+  accounting:
+    resources:
+      limits:
+        memory: 128Mi
+
+  # Fraud Detection Service (Kotlin/JVM)
+  fraud-detection:
+    resources:
+      limits:
+        memory: 300Mi
+
+  # Image Provider (nginx serving product images)
+  image-provider:
+    resources:
+      limits:
         memory: 64Mi
-      limits:
-        cpu: 200m
-        memory: 128Mi
 
-  # Serviço de recomendações
-  recommendationService:
-    enabled: true
+  # Quote Service (PHP)
+  quote:
     resources:
-      requests:
-        cpu: 50m
-        memory: 64Mi
       limits:
-        cpu: 200m
         memory: 128Mi
 
-  # Serviço de carrinho (usa Redis)
-  cartService:
-    enabled: true
-    resources:
-      requests:
-        cpu: 50m
-        memory: 64Mi
-      limits:
-        cpu: 200m
-        memory: 128Mi
-
-  # Redis (backend do cartService)
-  redis:
-    enabled: true
-
-  # Serviço de pagamento
-  paymentService:
-    enabled: true
-    resources:
-      requests:
-        cpu: 50m
-        memory: 64Mi
-      limits:
-        cpu: 200m
-        memory: 128Mi
-
-  # Serviço de envio
-  shippingService:
-    enabled: true
-    resources:
-      requests:
-        cpu: 50m
-        memory: 64Mi
-      limits:
-        cpu: 200m
-        memory: 128Mi
-
-  # Serviço de email
-  emailService:
-    enabled: true
-    resources:
-      requests:
-        cpu: 50m
-        memory: 64Mi
-      limits:
-        cpu: 200m
-        memory: 128Mi
-
-  # Serviço de moeda
-  currencyService:
-    enabled: true
-    resources:
-      requests:
-        cpu: 50m
-        memory: 64Mi
-      limits:
-        cpu: 200m
-        memory: 128Mi
-
-  # Serviço de anúncios (gera falhas simuladas — ótimo para testar alertas!)
-  adService:
-    enabled: true
-    resources:
-      requests:
-        cpu: 50m
-        memory: 128Mi
-      limits:
-        cpu: 200m
-        memory: 256Mi
-
-  # Serviço de contabilidade
-  accountingService:
-    enabled: true
-    resources:
-      requests:
-        cpu: 50m
-        memory: 64Mi
-      limits:
-        cpu: 200m
-        memory: 128Mi
-
-  # Serviço de fraude
-  frauddetectionService:
-    enabled: true
-    resources:
-      requests:
-        cpu: 50m
-        memory: 64Mi
-      limits:
-        cpu: 200m
-        memory: 128Mi
-
-  # Message queue (Kafka)
+  # Kafka (message queue entre serviços)
   kafka:
-    enabled: true
     resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
       limits:
-        cpu: 500m
-        memory: 512Mi
+        memory: 600Mi
 
-  # Feature flags (controla falhas simuladas na app)
-  flagd:
-    enabled: true
+  # Valkey (Redis-compatible) - backend do cartService
+  valkey-cart:
     resources:
-      requests:
-        cpu: 50m
-        memory: 32Mi
       limits:
-        cpu: 100m
+        memory: 128Mi
+
+  # Flag Daemon: controla feature flags (falhas simuladas)
+  # ⭐ Use para simular erros e testar alertas!
+  flagd:
+    resources:
+      limits:
         memory: 64Mi
