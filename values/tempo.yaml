@@ -38,16 +38,11 @@ tempo:
       wal:
         path: /var/tempo/wal
 
-  # Métricas geradas a partir dos spans (RED metrics!)
-  # Isso é o "Span Metrics" — equivalente aos service-level metrics do Dynatrace
+  # Métricas geradas a partir dos spans (RED metrics!) - habilitado apenas após Mimir estar healthy
+  # Desabilitado inicialmente para evitar dependência circular na inicialização
   metricsGenerator:
-    enabled: true
-    remoteWriteUrl: "http://mimir-nginx.grafana-stack.svc.cluster.local/api/v1/push"
-
-  # Configuração do querier para busca de traces
-  querier:
-    frontend_worker:
-      frontend_address: "tempo:9095"
+    enabled: false
+    # Habilitar depois: remoteWriteUrl: "http://mimir-nginx.grafana-stack.svc.cluster.local/api/v1/push"
 
 # Recursos mínimos para o lab
 resources:
@@ -62,6 +57,12 @@ resources:
 persistence:
   enabled: true
   size: 10Gi
+
+# Configuração do querier (monolítico — sem frontend separado)
+tempo:
+  querier:
+    frontend_worker:
+      frontend_address: ""
 
 # Service para acesso interno (Alloy + Grafana)
 service:

@@ -1,41 +1,42 @@
 # =============================================================================
 # values/mimir.yaml — Configuração do Mimir para o Lab
 #
-# Modo: monolítico (mimir-distributed em modo single-binary)
-# Storage: filesystem local
-# Retention: 7 dias
+# Usando grafana/mimir-distributed v5.7.0 (Mimir 2.16.0) com configuração
+# mínima: 1 réplica de cada componente, filesystem local, sem zonas.
 #
-# O Mimir é 100% compatível com a API do Prometheus (remote_write, query, etc.)
-# O Grafana se conecta ao Mimir como se fosse um Prometheus normal.
+# O mimir-distributed não tem modo single-binary como o Loki. Por isso,
+# configuramos cada componente com 1 réplica e recursos mínimos.
 #
-# Docs: https://grafana.com/docs/mimir/latest/setup/deploy-grafana-mimir-with-helm/
+# URLs resultantes:
+#   Remote write: http://mimir-nginx.grafana-stack.svc/api/v1/push
+#   Query:        http://mimir-nginx.grafana-stack.svc/prometheus
 # =============================================================================
 
-# Modo monolítico — todos os componentes em um único processo
+# Configuração principal do Mimir (Mimir 2.16.0 — campos corretos)
 mimir:
   structuredConfig:
-    # Auth desabilitada no lab
+    # Multi-tenancy desligado para o lab
     multitenancy_enabled: false
 
-    # Limites de ingestão (ajustados para lab)
+    # Limites globais (sem retention_period aqui — vai no compactor)
     limits:
       ingestion_rate: 10000
       ingestion_burst_size: 200000
       max_global_series_per_user: 1500000
-      retention_period: 168h  # 7 dias
 
-    # Compactor: remove blocos antigos
+    # Compactor: define retenção via data_dir
     compactor:
       data_dir: /data/mimir/compactor
 
-    # Ingester: recebe as métricas
+    # Ingester: replication_factor = 1 (sem HA no lab)
     ingester:
       ring:
-        replication_factor: 1  # Lab: sem replicação
+        replication_factor: 1
 
-    # Store-gateway: serve blocos do storage para queries
+    # Store-gateway: sem sharding no lab
     store_gateway:
-      sharding_enabled: false
+      sharding_ring:
+        replication_factor: 1
 
     # Storage: filesystem local
     blocks_storage:
@@ -45,48 +46,139 @@ mimir:
       tsdb:
         dir: /data/mimir/tsdb
 
-    # Ruler: para alertas (opcional, mas útil para aprender)
+    # Ruler storage (path separado do blocks_storage!)
     ruler_storage:
       backend: filesystem
       filesystem:
-        dir: /data/mimir/rules
+        dir: /data/mimir/ruler
 
-# Modo monolítico: 1 única replica com todos os roles
-mimir_backend:
-  replicas: 0
+# =============================================================================
+# COMPONENTES — 1 réplica de cada, recursos mínimos
+# =============================================================================
 
-mimir_read:
-  replicas: 0
+# Desabilitar zone-aware replication (não precisamos de zonas no lab)
+ingester:
+  replicas: 1
+  zoneAwareReplication:
+    enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  persistentVolume:
+    enabled: true
+    size: 10Gi
 
-mimir_write:
-  replicas: 0
+store_gateway:
+  replicas: 1
+  zoneAwareReplication:
+    enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
+  persistentVolume:
+    enabled: true
+    size: 10Gi
 
-# Single binary (monolítico)
-singleBinary:
+distributor:
   replicas: 1
   resources:
     requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+querier:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+query_frontend:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+query_scheduler:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+compactor:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
       cpu: 200m
       memory: 512Mi
-    limits:
-      cpu: 1000m
-      memory: 2Gi
-  persistence:
+  persistentVolume:
     enabled: true
-    size: 20Gi
+    size: 5Gi
 
-# NGINX como ponto único de entrada (simplifica a URL do remote_write)
-# Alloy vai escrever em: http://mimir-nginx.grafana-stack/api/v1/push
+# Ruler: desabilitado por ora (path conflict com blocks_storage)
+ruler:
+  enabled: false
+  replicas: 0
+
+overrides_exporter:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# =============================================================================
+# NGINX — ponto único de entrada (remote_write + query)
+# =============================================================================
 nginx:
   enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
 
-# Desabilitar componentes desnecessários no lab
+# =============================================================================
+# COMPONENTES DESABILITADOS
+# =============================================================================
+minio:
+  enabled: false
+
 rollout_operator:
   enabled: false
 
-minio:
-  enabled: false  # Usamos filesystem, não object storage
-
-# Alertmanager desabilitado (foco em métricas e traces por ora)
 alertmanager:
   enabled: false
+  replicas: 0

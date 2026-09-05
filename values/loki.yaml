@@ -19,6 +19,15 @@ loki:
   commonConfig:
     replication_factor: 1
 
+  # Storage: filesystem local — bucketNames são necessários mesmo em modo filesystem
+  # (o chart exige os campos, mesmo que não sejam usados com backend local)
+  storage:
+    type: filesystem
+    bucketNames:
+      chunks: chunks
+      ruler: ruler
+      admin: admin
+
   # Schema de armazenamento — tsdb é o mais moderno e eficiente
   schemaConfig:
     configs:
@@ -33,15 +42,11 @@ loki:
   # Limites globais
   limits_config:
     retention_period: 168h  # 7 dias
+    allow_structured_metadata: true
 
-  # Ingester: configura retenção local
-  ingester:
-    chunk_idle_period: 5m
-    chunk_retain_period: 30s
-
-# Storage: filesystem local (simple, sem dependências externas)
-storage:
-  type: filesystem
+  # Pattern ingester (novo recurso do Loki 3.x)
+  pattern_ingester:
+    enabled: false
 
 # Single Binary: apenas 1 réplica para o lab
 singleBinary:
@@ -56,6 +61,13 @@ singleBinary:
   persistence:
     enabled: true
     size: 10Gi
+
+# Desabilitar caches memcached (consomem muita memória no lab)
+chunksCache:
+  enabled: false
+
+resultsCache:
+  enabled: false
 
 # Desabilitar componentes desnecessários no lab
 backend:
@@ -78,6 +90,8 @@ monitoring:
     grafanaAgent:
       installOperator: false
   lokiCanary:
+    enabled: false
+  serviceMonitor:
     enabled: false
 
 # Desabilitar test (não necessário no lab)
