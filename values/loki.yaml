@@ -1,0 +1,85 @@
+# =============================================================================
+# values/loki.yaml — Configuração do Loki para o Lab
+#
+# Modo: SingleBinary (monolítico) — ideal para lab local.
+# Storage: filesystem local (sem necessidade de S3/MinIO).
+# Retention: 7 dias (suficiente para estudo).
+#
+# Docs: https://grafana.com/docs/loki/latest/setup/install/helm/install-monolithic/
+# =============================================================================
+
+# Modo de deploy: monolítico (tudo em um único pod)
+deploymentMode: SingleBinary
+
+# Configurações do Loki
+loki:
+  # Auth desabilitada no lab (multi-tenancy desligado)
+  auth_enabled: false
+
+  commonConfig:
+    replication_factor: 1
+
+  # Schema de armazenamento — tsdb é o mais moderno e eficiente
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+
+  # Limites globais
+  limits_config:
+    retention_period: 168h  # 7 dias
+
+  # Ingester: configura retenção local
+  ingester:
+    chunk_idle_period: 5m
+    chunk_retain_period: 30s
+
+# Storage: filesystem local (simple, sem dependências externas)
+storage:
+  type: filesystem
+
+# Single Binary: apenas 1 réplica para o lab
+singleBinary:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  persistence:
+    enabled: true
+    size: 10Gi
+
+# Desabilitar componentes desnecessários no lab
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+
+# Habilitar gateway (ponto único de entrada para o Alloy enviar logs)
+gateway:
+  enabled: true
+  service:
+    port: 80
+
+# Disable self-monitoring para economizar recursos
+monitoring:
+  selfMonitoring:
+    enabled: false
+    grafanaAgent:
+      installOperator: false
+  lokiCanary:
+    enabled: false
+
+# Desabilitar test (não necessário no lab)
+test:
+  enabled: false

@@ -1,0 +1,224 @@
+# =============================================================================
+# values/otel-demo.yaml — OpenTelemetry Demo App
+#
+# App de demonstração com 20+ microservices instrumentados com OTEL.
+# Gera traces, métricas e logs reais para testar a stack de observabilidade.
+#
+# Desabilitamos os componentes internos da demo pois temos nossa própria stack:
+#   ❌ Grafana embutido (usamos o nosso)
+#   ❌ Jaeger embutido (usamos o Tempo)
+#   ❌ Prometheus embutido (usamos o Mimir via Alloy)
+#   ❌ OpenTelemetry Collector embutido (usamos o Alloy)
+#
+# Docs: https://opentelemetry.io/docs/demo/kubernetes-deployment/
+# =============================================================================
+
+# =============================================================================
+# COMPONENTES INTERNOS — Todos desabilitados (usamos nossa stack)
+# =============================================================================
+default:
+  # Endereço do nosso Alloy para receber OTLP de todos os microservices
+  # Todos os serviços do demo vão enviar traces/métricas/logs para cá
+  envOverrides:
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://alloy.grafana-stack.svc.cluster.local:4317"
+    OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+
+# Desabilitar componentes de observabilidade internos da demo
+opentelemetry-collector:
+  enabled: false   # Usamos o Alloy
+
+jaeger:
+  enabled: false   # Usamos o Tempo
+
+prometheus:
+  enabled: false   # Usamos o Mimir via Alloy
+
+grafana:
+  enabled: false   # Usamos o nosso Grafana
+
+# =============================================================================
+# COMPONENTES DA APP — Ajustar recursos para o lab (M1 com 10 GB alocados)
+# =============================================================================
+
+# Frontend (interface web da loja)
+components:
+  frontend:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  # Proxy de entrada (expõe o frontend externamente)
+  frontendProxy:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+    service:
+      type: ClusterIP
+
+  # Load generator — gera tráfego contínuo para a loja
+  loadgenerator:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  # Serviço de checkout
+  checkoutService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  # Serviço de produtos
+  productCatalogService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  # Serviço de recomendações
+  recommendationService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  # Serviço de carrinho (usa Redis)
+  cartService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  # Redis (backend do cartService)
+  redis:
+    enabled: true
+
+  # Serviço de pagamento
+  paymentService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  # Serviço de envio
+  shippingService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  # Serviço de email
+  emailService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  # Serviço de moeda
+  currencyService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  # Serviço de anúncios (gera falhas simuladas — ótimo para testar alertas!)
+  adService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  # Serviço de contabilidade
+  accountingService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  # Serviço de fraude
+  frauddetectionService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  # Message queue (Kafka)
+  kafka:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  # Feature flags (controla falhas simuladas na app)
+  flagd:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi

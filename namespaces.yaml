@@ -1,0 +1,16 @@
+---
+# Namespace para a Grafana Stack (Alloy, Mimir, Tempo, Loki, Grafana)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: grafana-stack
+  labels:
+    app.kubernetes.io/managed-by: helmfile
+---
+# Namespace para o OpenTelemetry Demo (app de carga)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: otel-demo
+  labels:
+    app.kubernetes.io/managed-by: helmfile

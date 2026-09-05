@@ -1,0 +1,92 @@
+# =============================================================================
+# values/mimir.yaml — Configuração do Mimir para o Lab
+#
+# Modo: monolítico (mimir-distributed em modo single-binary)
+# Storage: filesystem local
+# Retention: 7 dias
+#
+# O Mimir é 100% compatível com a API do Prometheus (remote_write, query, etc.)
+# O Grafana se conecta ao Mimir como se fosse um Prometheus normal.
+#
+# Docs: https://grafana.com/docs/mimir/latest/setup/deploy-grafana-mimir-with-helm/
+# =============================================================================
+
+# Modo monolítico — todos os componentes em um único processo
+mimir:
+  structuredConfig:
+    # Auth desabilitada no lab
+    multitenancy_enabled: false
+
+    # Limites de ingestão (ajustados para lab)
+    limits:
+      ingestion_rate: 10000
+      ingestion_burst_size: 200000
+      max_global_series_per_user: 1500000
+      retention_period: 168h  # 7 dias
+
+    # Compactor: remove blocos antigos
+    compactor:
+      data_dir: /data/mimir/compactor
+
+    # Ingester: recebe as métricas
+    ingester:
+      ring:
+        replication_factor: 1  # Lab: sem replicação
+
+    # Store-gateway: serve blocos do storage para queries
+    store_gateway:
+      sharding_enabled: false
+
+    # Storage: filesystem local
+    blocks_storage:
+      backend: filesystem
+      filesystem:
+        dir: /data/mimir/blocks
+      tsdb:
+        dir: /data/mimir/tsdb
+
+    # Ruler: para alertas (opcional, mas útil para aprender)
+    ruler_storage:
+      backend: filesystem
+      filesystem:
+        dir: /data/mimir/rules
+
+# Modo monolítico: 1 única replica com todos os roles
+mimir_backend:
+  replicas: 0
+
+mimir_read:
+  replicas: 0
+
+mimir_write:
+  replicas: 0
+
+# Single binary (monolítico)
+singleBinary:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  persistence:
+    enabled: true
+    size: 20Gi
+
+# NGINX como ponto único de entrada (simplifica a URL do remote_write)
+# Alloy vai escrever em: http://mimir-nginx.grafana-stack/api/v1/push
+nginx:
+  enabled: true
+
+# Desabilitar componentes desnecessários no lab
+rollout_operator:
+  enabled: false
+
+minio:
+  enabled: false  # Usamos filesystem, não object storage
+
+# Alertmanager desabilitado (foco em métricas e traces por ora)
+alertmanager:
+  enabled: false

@@ -1,0 +1,30 @@
+# Secrets e valores sensíveis — NUNCA versionar
+secrets/
+*.secret.yaml
+*.secrets.yaml
+*-secret.yaml
+
+# Arquivos temporários do helmfile
+.helmfile/
+charts/
+
+# Cache local
+.cache/
+
+# Kubeconfig local (caso alguém copie pra cá)
+kubeconfig
+*.kubeconfig
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log

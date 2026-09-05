@@ -1,0 +1,68 @@
+# =============================================================================
+# values/tempo.yaml — Configuração do Tempo para o Lab
+#
+# Modo: monolítico (single binary)
+# Storage: filesystem local
+# Receivers: OTLP gRPC + HTTP, Jaeger (para compatibilidade)
+# Retention: 24h (traces são volumosos)
+#
+# Docs: https://grafana.com/docs/tempo/latest/setup/helm-chart/
+# =============================================================================
+
+# Configuração principal do Tempo
+tempo:
+  # Retenção de traces: 24 horas (suficiente para estudo)
+  retention: 24h
+
+  # Receivers de traces — Alloy vai enviar via OTLP gRPC
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+    jaeger:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:14250"
+        thrift_http:
+          endpoint: "0.0.0.0:14268"
+
+  # Storage: filesystem local
+  storage:
+    trace:
+      backend: local
+      local:
+        path: /var/tempo/traces
+      wal:
+        path: /var/tempo/wal
+
+  # Métricas geradas a partir dos spans (RED metrics!)
+  # Isso é o "Span Metrics" — equivalente aos service-level metrics do Dynatrace
+  metricsGenerator:
+    enabled: true
+    remoteWriteUrl: "http://mimir-nginx.grafana-stack.svc.cluster.local/api/v1/push"
+
+  # Configuração do querier para busca de traces
+  querier:
+    frontend_worker:
+      frontend_address: "tempo:9095"
+
+# Recursos mínimos para o lab
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Persistência local
+persistence:
+  enabled: true
+  size: 10Gi
+
+# Service para acesso interno (Alloy + Grafana)
+service:
+  type: ClusterIP

@@ -1,0 +1,217 @@
+# =============================================================================
+# values/alloy.yaml — Configuração do Grafana Alloy para o Lab
+#
+# O Alloy é o agente de telemetria da Grafana. Ele substitui:
+#   - Prometheus Agent (scraping de métricas)
+#   - Promtail (coleta de logs do Kubernetes)
+#   - OpenTelemetry Collector (gateway OTLP para traces/métricas/logs)
+#
+# Configurado aqui como DaemonSet para coletar de todos os nós.
+#
+# Docs: https://grafana.com/docs/alloy/latest/
+# =============================================================================
+
+# Tipo de deploy: DaemonSet — roda em cada nó do cluster
+# (StatefulSet seria para um gateway centralizado, DaemonSet é o padrão para lab)
+controller:
+  type: daemonset
+
+# Recursos do DaemonSet
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# ServiceAccount com permissões para ler pods, namespaces e logs do K8s
+serviceAccount:
+  create: true
+  name: alloy
+
+# ClusterRole para descoberta de serviços no K8s
+rbac:
+  create: true
+
+# Configuração principal do Alloy (linguagem HCL proprietária)
+# Esta é a "receita" de coleta de telemetria:
+alloy:
+  configMap:
+    content: |
+      // =========================================================================
+      // ALLOY CONFIGURATION — Lab Grafana Stack
+      //
+      // Pipelines configurados:
+      //   1. OTLP Receiver → recebe traces/métricas/logs das apps (porta 4317/4318)
+      //   2. Prometheus Scraping → coleta métricas do cluster K8s
+      //   3. Kubernetes Logs → coleta logs dos pods via kubelet
+      //   4. Span Metrics → gera métricas RED a partir dos spans (sem instrumentation!)
+      // =========================================================================
+
+      // -----------------------------------------------------------------------
+      // 1. OTLP RECEIVER
+      //    Ponto de entrada para apps que enviam telemetria via OpenTelemetry.
+      //    O OTel Demo aponta para este endpoint.
+      //    Porta 4317 = gRPC | Porta 4318 = HTTP
+      // -----------------------------------------------------------------------
+      otelcol.receiver.otlp "default" {
+        grpc {
+          endpoint = "0.0.0.0:4317"
+        }
+        http {
+          endpoint = "0.0.0.0:4318"
+        }
+
+        output {
+          metrics = [otelcol.processor.batch.default.input]
+          logs    = [otelcol.processor.batch.default.input]
+          traces  = [otelcol.processor.batch.default.input]
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // 2. BATCH PROCESSOR
+      //    Agrupa sinais antes de enviar (reduz overhead de rede)
+      // -----------------------------------------------------------------------
+      otelcol.processor.batch "default" {
+        timeout         = "5s"
+        send_batch_size = 1000
+
+        output {
+          metrics = [otelcol.exporter.prometheus.default.input]
+          logs    = [otelcol.exporter.loki.default.input]
+          traces  = [otelcol.exporter.otlp.tempo.input]
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // 3. EXPORTERS — onde os dados vão depois de processados
+
+      // 3a. Traces → Tempo
+      otelcol.exporter.otlp "tempo" {
+        client {
+          endpoint = "http://tempo.grafana-stack.svc.cluster.local:4317"
+          tls {
+            insecure = true
+          }
+        }
+      }
+
+      // 3b. Logs → Loki
+      otelcol.exporter.loki "default" {
+        forward_to = [loki.write.default.receiver]
+      }
+
+      // 3c. Métricas → Mimir (via Prometheus remote_write)
+      otelcol.exporter.prometheus "default" {
+        forward_to = [prometheus.remote_write.mimir.receiver]
+      }
+
+      // -----------------------------------------------------------------------
+      // 4. PROMETHEUS SCRAPING — coleta métricas do cluster K8s
+      //    Descobre automaticamente pods com a anotação:
+      //    prometheus.io/scrape: "true"
+      // -----------------------------------------------------------------------
+      prometheus.operator.podmonitors "default" {
+        forward_to = [prometheus.remote_write.mimir.receiver]
+      }
+
+      // Scraping de endpoints do cluster K8s (kube-state-metrics, cadvisor, etc.)
+      prometheus.scrape "kubernetes_pods" {
+        targets    = discovery.kubernetes.pods.targets
+        forward_to = [prometheus.remote_write.mimir.receiver]
+
+        // Apenas pods com a anotação de scrape habilitada
+        rule {
+          source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
+          action        = "keep"
+          regex         = "true"
+        }
+
+        rule {
+          source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_path"]
+          action        = "replace"
+          target_label  = "__metrics_path__"
+          regex         = "(.+)"
+        }
+
+        rule {
+          source_labels = ["__address__", "__meta_kubernetes_pod_annotation_prometheus_io_port"]
+          action        = "replace"
+          regex         = "([^:]+)(?::\\d+)?;(\\d+)"
+          replacement   = "$1:$2"
+          target_label  = "__address__"
+        }
+      }
+
+      // Discovery de pods no cluster
+      discovery.kubernetes "pods" {
+        role = "pod"
+      }
+
+      // -----------------------------------------------------------------------
+      // 5. KUBERNETES LOGS — coleta logs dos containers via kubelet API
+      //    Funciona sem sidecar nas aplicações (zero-instrumentation!)
+      // -----------------------------------------------------------------------
+      loki.source.kubernetes "pods" {
+        targets    = discovery.kubernetes.pods.targets
+        forward_to = [loki.process.pods.receiver]
+      }
+
+      // Processar e enriquecer os logs com metadados do K8s
+      loki.process "pods" {
+        forward_to = [loki.write.default.receiver]
+
+        // Adiciona labels de namespace, pod e container nos logs
+        stage.kubernetes {}
+
+        // Extrai labels relevantes do K8s para facilitar filtros no Grafana
+        stage.labels {
+          values = {
+            namespace = "",
+            pod       = "",
+            container = "",
+            app       = "",
+          }
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // 6. REMOTE WRITE → MIMIR
+      //    Todas as métricas (scraping + OTLP) vão para o Mimir
+      // -----------------------------------------------------------------------
+      prometheus.remote_write "mimir" {
+        endpoint {
+          url = "http://mimir-nginx.grafana-stack.svc.cluster.local/api/v1/push"
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // 7. LOKI WRITE
+      //    Todos os logs (K8s + OTLP) vão para o Loki
+      // -----------------------------------------------------------------------
+      loki.write "default" {
+        endpoint {
+          url = "http://loki-gateway.grafana-stack.svc.cluster.local/loki/api/v1/push"
+        }
+      }
+
+# Expor as portas OTLP para que as apps do cluster consigam enviar telemetria
+service:
+  enabled: true
+  clusterIP: ""
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+
+# Permissões adicionais para coletar logs do kubelet
+podAnnotations:
+  # Permite coletar logs de todos os containers
+  "kubectl.kubernetes.io/last-applied-configuration": ""
