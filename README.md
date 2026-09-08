@@ -11,7 +11,7 @@ Laboratório local de observabilidade completa usando a **Grafana Stack (LGTM)**
 | **Tempo** | Armazenamento e consulta de traces distribuídos | PurePath / Distributed Tracing |
 | **Loki** | Armazenamento e consulta de logs | Log Viewer do Dynatrace |
 | **Grafana** | Dashboards, exploração e alertas | Dynatrace UI |
-| **OTel Demo** | App de carga (20+ microservices) | Aplicações monitoradas |
+| **Podinfo** | App de testes leve para geração de telemetria | Aplicações monitoradas |
 
 ## Pré-requisitos
 
@@ -32,6 +32,8 @@ colima start --profile grafana-lab \
   --disk 60 \
   --kubernetes \
   --kubernetes-version v1.33.2+k3s1 \
+  --k3s-arg="--disable=traefik" \
+  --k3s-arg="--disable=servicelb" \
   --network-address
 ```
 
@@ -53,10 +55,10 @@ kubectl apply -f namespaces.yaml
 helmfile apply -l component=grafana-stack
 ```
 
-### 5. Deploy do OpenTelemetry Demo
+### 5. Deploy do Podinfo (App de testes)
 
 ```bash
-helmfile apply -l component=otel-demo
+helmfile apply -l component=podinfo
 ```
 
 ### 6. Acessar o Grafana
@@ -78,7 +80,7 @@ lab-grafana-stack/
 │   ├── tempo.yaml          # Config do Tempo (traces)
 │   ├── loki.yaml           # Config do Loki (logs)
 │   ├── alloy.yaml          # Config do Alloy (collector)
-│   └── otel-demo.yaml      # Config do OpenTelemetry Demo
+│   └── podinfo.yaml        # Config do Podinfo (app de telemetria)
 ├── dashboards/             # Dashboards Grafana em JSON
 └── docs/                   # Notas, aprendizados e arquitetura
 ```
@@ -96,7 +98,7 @@ colima start --profile grafana-lab
 ## Recursos de Referência
 
 - [Grafana Helm Charts](https://github.com/grafana/helm-charts)
-- [OpenTelemetry Demo](https://github.com/open-telemetry/opentelemetry-demo)
+- [Podinfo Github](https://github.com/stefanprodan/podinfo)
 - [Grafana Alloy Docs](https://grafana.com/docs/alloy/)
 - [Mimir Docs](https://grafana.com/docs/mimir/)
 - [Tempo Docs](https://grafana.com/docs/tempo/)

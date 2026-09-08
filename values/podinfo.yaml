@@ -1,0 +1,42 @@
+# =============================================================================
+# values/podinfo.yaml — Aplicação leve para testes de telemetria
+#
+# Docs: https://github.com/stefanprodan/podinfo
+# =============================================================================
+
+# Réplicas e UI
+replicaCount: 1
+ui:
+  color: "#34577c"
+  message: "Gerando telemetria para a Grafana Stack!"
+
+# Configuração de Tracing (OpenTelemetry)
+# O Podinfo possui suporte nativo. Apontamos para a porta OTLP gRPC do Alloy.
+tracing:
+  endpoint: "alloy.grafana-stack.svc.cluster.local:4317"
+
+# Métricas já são expostas em /metrics automaticamente.
+# Como o Alloy já está configurado para fazer o scrape via anotações,
+# ativamos as anotações no pod do podinfo.
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9898"
+
+# Um gerador de carga super leve que faz requests ao próprio podinfo
+# para garantir que teremos traces, logs e métricas constantemente sendo gerados.
+loadtester:
+  enabled: true
+  # Uma taxa de requisição bem baixa para não afetar o lab (10 req/s)
+  config:
+    rate: 10
+    connections: 5
+    duration: 10000h
+
+# Recursos minúsculos
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
