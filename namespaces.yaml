@@ -7,10 +7,10 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: helmfile
 ---
-# Namespace para o OpenTelemetry Demo (app de carga)
+# Namespace para o Podinfo (app de testes)
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: otel-demo
+  name: sample-app
   labels:
     app.kubernetes.io/managed-by: helmfile

@@ -63,11 +63,11 @@ ingester:
     enabled: false
   resources:
     requests:
-      cpu: 100m
-      memory: 256Mi
+      cpu: 30m
+      memory: 64Mi
     limits:
       cpu: 500m
-      memory: 1Gi
+      memory: 512Mi
   persistentVolume:
     enabled: true
     size: 10Gi
@@ -78,11 +78,11 @@ store_gateway:
     enabled: false
   resources:
     requests:
-      cpu: 50m
-      memory: 128Mi
+      cpu: 30m
+      memory: 32Mi
     limits:
       cpu: 200m
-      memory: 512Mi
+      memory: 256Mi
   persistentVolume:
     enabled: true
     size: 10Gi
@@ -91,52 +91,44 @@ distributor:
   replicas: 1
   resources:
     requests:
-      cpu: 50m
-      memory: 128Mi
+      cpu: 30m
+      memory: 32Mi
     limits:
-      cpu: 200m
-      memory: 256Mi
+      cpu: 100m
+      memory: 128Mi
 
 querier:
   replicas: 1
   resources:
     requests:
-      cpu: 50m
-      memory: 128Mi
+      cpu: 30m
+      memory: 32Mi
     limits:
-      cpu: 200m
-      memory: 256Mi
+      cpu: 100m
+      memory: 128Mi
 
 query_frontend:
   replicas: 1
   resources:
     requests:
-      cpu: 50m
-      memory: 64Mi
-    limits:
-      cpu: 200m
-      memory: 256Mi
-
-query_scheduler:
-  enabled: true
-  replicas: 1
-  resources:
-    requests:
-      cpu: 50m
-      memory: 64Mi
+      cpu: 30m
+      memory: 32Mi
     limits:
       cpu: 100m
       memory: 128Mi
+
+query_scheduler:
+  enabled: false
 
 compactor:
   replicas: 1
   resources:
     requests:
-      cpu: 50m
-      memory: 128Mi
+      cpu: 30m
+      memory: 64Mi
     limits:
-      cpu: 200m
-      memory: 512Mi
+      cpu: 100m
+      memory: 256Mi
   persistentVolume:
     enabled: true
     size: 5Gi
@@ -147,15 +139,7 @@ ruler:
   replicas: 0
 
 overrides_exporter:
-  enabled: true
-  replicas: 1
-  resources:
-    requests:
-      cpu: 50m
-      memory: 64Mi
-    limits:
-      cpu: 100m
-      memory: 128Mi
+  enabled: false
 
 # =============================================================================
 # NGINX — ponto único de entrada (remote_write + query)
